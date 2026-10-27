@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>مقعد · احجز طاولتك</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/style.css">
+<script src="/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero" id="hero">
+    <img class="brand" id="brand" alt="" hidden>
+    <div class="logo" id="logo">م</div>
+    <div class="hero-text">
+      <h1 id="cafeName">…</h1>
+      <div class="sub" id="cafeArea"></div>
+      <div class="hours" id="cafeHours"></div>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button data-v="book" aria-current="true">احجز</button>
+    <button data-v="mine">حجزي</button>
+  </nav>
+
+  <div class="banner" id="banner" hidden></div>
+  <div class="banner ok" id="upcoming" hidden></div>
+
+  <!-- احجز -->
+  <section id="v-book" class="panel">
+    <h2>نوع الجلسة</h2>
+    <div class="seg" id="types"></div>
+    <h2>اليوم</h2>
+    <div class="days" id="days"></div>
+    <div class="row">
+      <h2>عدد الأشخاص</h2>
+      <div class="stepper">
+        <button id="minus" aria-label="أقل">−</button>
+        <output id="ppl">2</output>
+        <button id="plus" aria-label="أكثر">+</button>
+      </div>
+    </div>
+    <p class="note" id="groupNote" hidden></p>
+    <h2>الوقت</h2>
+    <div class="slots" id="slots"></div>
+    <label for="fName">الاسم<input id="fName" autocomplete="name" placeholder="الاسم اللي يناديك فيه الموظف"></label>
+    <label for="fPhone">رقم الجوال<input id="fPhone" inputmode="tel" autocomplete="tel" placeholder="05xxxxxxxx" class="ltr"></label>
+    <p class="note">رقم جوالك هو مفتاحك: ترجع لحجزك فيه من تبويب "حجزي" بدون تسجيل دخول.</p>
+    <p class="err" id="bookErr" hidden></p>
+    <button class="cta" id="bookBtn">ثبّت الحجز</button>
+  </section>
+
+  <!-- حجزي -->
+  <section id="v-mine" class="panel" hidden>
+    <h2>وين حجزي؟</h2>
+    <p class="note">اكتب رقم جوالك أو رقم الحجز (مثل S4821). ما يحتاج كلمة مرور.</p>
+    <form id="lookupForm" class="row nowrap">
+      <input id="lookup" placeholder="05xxxxxxxx أو S4821" class="ltr">
+      <button class="ghost" style="flex:none">ابحث</button>
+    </form>
+    <div id="lookupRes" class="stack"></div>
+  </section>
+
+  <!-- صفحة حجز واحد -->
+  <section id="v-booking" class="panel ticket" hidden></section>
+
+  <!-- دخول صاحب الكوفي -->
+  <section id="v-login" class="panel" hidden>
+    <h2>دخول صاحب الكوفي</h2>
+    <form id="loginForm" class="stack">
+      <label for="lEmail">الإيميل<input id="lEmail" type="email" autocomplete="username" class="ltr"></label>
+      <label for="lPass">كلمة المرور<input id="lPass" type="password" autocomplete="current-password" class="ltr"></label>
+      <p class="err" id="lErr" hidden></p>
+      <button class="cta">دخول</button>
+    </form>
+  </section>
+
+  <!-- لوحة الكوفي -->
+  <section id="v-owner" class="stack" hidden>
+    <div class="panel">
+      <div class="row"><h2>لوحة الكوفي</h2><button class="ghost small" id="logout">خروج</button></div>
+      <div class="days" id="oDays"></div>
+      <div class="stats">
+        <div class="stat"><b id="sTotal">٠</b><span>حجز</span></div>
+        <div class="stat"><b id="sPpl">٠</b><span>شخص</span></div>
+        <div class="stat"><b id="sIn">٠</b><span>وصلوا</span></div>
+      </div>
+      <button class="ghost" id="closeDay"></button>
+    </div>
+    <div class="panel"><h2>الحجوزات</h2><div id="oList"></div></div>
+    <div class="panel"><h2>الضغط حسب الوقت</h2><div id="oLoad" class="stack"></div></div>
+    <details class="panel">
+      <summary>إضافة حجز يدوي (اتصال أو واتساب)</summary>
+      <div class="stack">
+        <div class="grid2">
+          <label for="mName">الاسم<input id="mName"></label>
+          <label for="mPhone">الجوال (اختياري)<input id="mPhone" inputmode="tel" class="ltr"></label>
+          <label for="mType">الجلسة<select id="mType"></select></label>
+          <label for="mTime">الوقت<select id="mTime"></select></label>
+          <label for="mPpl">الأشخاص<input id="mPpl" type="number" min="1" max="50" value="2"></label>
+        </div>
+        <p class="err" id="mErr" hidden></p>
+        <button class="cta" id="mAdd">أضف الحجز</button>
+      </div>
+    </details>
+    <details class="panel">
+      <summary>إعدادات الكوفي</summary>
+      <div class="stack">
+        <div class="grid2">
+          <label for="sName">اسم الكوفي<input id="sName"></label>
+          <label for="sArea">المدينة والحي<input id="sArea"></label>
+          <label for="sOpen">يفتح<input id="sOpen" type="time"></label>
+          <label for="sClose">يقفل<input id="sClose" type="time"></label>
+          <label for="sGrace">مهلة التأخير (دقيقة)<input id="sGrace" type="number" min="5" max="60"></label>
+          <label for="sMax">أكبر مجموعة<input id="sMax" type="number" min="1" max="50"></label>
+          <label for="sMap" class="full">رابط الموقع في قوقل ماب<input id="sMap" class="ltr" placeholder="https://maps.app.goo.gl/…"></label>
+        </div>
+        <h3>الطاولات ومدة الجلسة لكل نوع</h3>
+        <p class="note">العميل يشوف المدة قبل الحجز، ويجيه تنبيه قبل النهاية بـ ١٠ دقائق وعند انتهاء الوقت.</p>
+        <div id="typeSet"></div>
+        <p class="err" id="sErr" hidden></p>
+        <button class="cta" id="sSave">احفظ الإعدادات</button>
+      </div>
+    </details>
+    <div class="panel">
+      <h2>رابط الحجز</h2>
+      <div class="link"><code id="shareLink"></code><button class="ghost" id="copyShare" style="flex:none">نسخ</button></div>
+      <p class="note">حطه في بايو انستقرام أو اطبعه QR. كل حجز يوصله رابط خاص يفتح حجزه مباشرة.</p>
+    </div>
+  </section>
+
+  <footer class="foot"><span>مقعد</span><a href="#owner" id="ownerLink" hidden></a></footer>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>
