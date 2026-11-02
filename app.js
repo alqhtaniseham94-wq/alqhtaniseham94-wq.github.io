@@ -55,7 +55,8 @@ function toSettings(c) {
   return { name: c.name, area: c.area || "", open: c.open_time.slice(0, 5), close: c.close_time.slice(0, 5), slot: c.slot_minutes,
     grace: c.grace_minutes, maxGroup: c.max_group, mapUrl: c.map_url || "", closed: c.closed_dates || [],
     types: (c.types || []).map(t => ({ dur: 45, desc: "", ...t })),
-    logo: c.logo_url || "", accent: c.accent_color || "", bg: c.bg_color || "" };
+    logo: c.logo_url || "", accent: c.accent_color || "", bg: c.bg_color || "",
+    about: c.about || "", policies: (c.policies || "").split("\n").map(x => x.trim()).filter(Boolean) };
 }
 function toBooking(r) {
   return { token: r.token, code: r.code, date: r.night, time: String(r.slot_time).slice(0, 5), type: r.type_id, ppl: r.people,
@@ -79,9 +80,10 @@ function lifeOf(b) {
 }
 const ERRORS = {
   FULL: "امتلأ هذا الوقت قبل لحظات. اختر وقت ثاني.", CLOSED: "الحجز مقفل في هذا اليوم.", PAST: "هذا الوقت فات أو قريب جداً. اختر وقت بعده.",
-  BAD_PHONE: "رقم الجوال لازم يبدأ بـ 05 ويكون ١٠ أرقام.", BAD_NAME: "اكتب اسمك (حرفين على الأقل).", BAD_PEOPLE: "عدد الأشخاص أكبر من المسموح. تواصل مع الكوفي.",
+  BAD_PHONE: "رقم الجوال لازم يبدأ بـ 05 ويكون ١٠ أرقام.", BAD_NAME: "اكتب اسمك (حرفين على الأقل).", BAD_PEOPLE: "عدد الأشخاص أكبر من المسموح. تواصل مع المكان.",
   BAD_TIME: "هذا الوقت مو من أوقات الحجز.", BAD_DATE: "الحجز متاح لسبعة أيام قدام فقط.", BAD_TYPE: "نوع الجلسة غير متاح.",
-  TOO_MANY: "عندك ٣ حجوزات قادمة. ألغِ واحد قبل ما تحجز جديد.", NOT_FOUND: "الكوفي غير موجود. تأكد من الرابط."
+  TOO_MANY: "عندك ٣ حجوزات قادمة. ألغِ واحد قبل ما تحجز جديد.", NOT_FOUND: "المكان غير موجود. تأكد من الرابط.",
+  DUPLICATE: "عندك حجز بنفس الوقت من قبل. افتح تبويب \"حجزي\" تشوفه."
 };
 function friendly(err) { const m = (err && err.message) || ""; for (const k in ERRORS) if (m.includes(k)) return ERRORS[k]; return "صار خطأ في الاتصال. جرّب مرة ثانية."; }
 
@@ -95,6 +97,7 @@ function renderHeader() {
   $("cafeName").textContent = S.name; $("cafeArea").textContent = S.area;
   $("logo").textContent = (S.name.replace(/^(كوفي|مقهى|مطعم)\s+/, "")[0] || "م");   // أول حرف من الاسم بدون "مطعم/كوفي"
   $("cafeHours").textContent = `كل يوم ${label12(S.open)} – ${label12(S.close)}`;
+  renderAbout();
   document.title = `${S.name} · احجز طاولتك`;
   // الهوية: شعار وألوان المكان لو محفوظة في قاعدة البيانات
   const img = $("brand"), ok = /^(\/|https:\/\/)[^\s"']+$/.test(S.logo);
@@ -114,6 +117,7 @@ function renderBook() {
   for (let i = 0; i < 7; i++) { const k = addDays(t0, i), c = S.closed.includes(k);
     h += `<button class="day" data-d="${k}" aria-pressed="${form.date === k}" ${c ? "disabled" : ""}><span>${c ? "مقفل" : dayLabel(k)}</span><b>${AR(Number(k.slice(8)))}</b></button>`; }
   $("days").innerHTML = h; $("ppl").value = AR(form.ppl); renderSlots();
+  $("agreeRow").hidden = !S.policies.length;
 }
 function renderSlots() {
   const cap = typeOf(form.type).cap, now = Date.now();
@@ -125,7 +129,7 @@ function renderSlots() {
     return `<button class="slot ${left <= 2 && !dis ? "few" : ""}" data-s="${t}" ${dis ? "disabled" : ""} aria-pressed="${form.time === t}">${label12(t).replace(/ [صم]$/, "")}<small>${note}</small></button>`;
   }).join("");
   $("groupNote").hidden = form.ppl <= S.maxGroup;
-  $("groupNote").textContent = `المجموعات فوق ${AR(S.maxGroup)} أشخاص تحتاج تنسيق مع الكوفي مباشرة.`;
+  $("groupNote").textContent = `المجموعات فوق ${AR(S.maxGroup)} أشخاص تحتاج تنسيق مع المكان مباشرة.`;
 }
 $("types").onclick = e => { const b = e.target.closest("[data-t]"); if (b) { form.type = b.dataset.t; renderBook(); } };
 $("days").onclick = e => { const b = e.target.closest("[data-d]"); if (b && !b.disabled) { form.date = b.dataset.d; renderBook(); } };
@@ -141,7 +145,8 @@ async function loadBusy() {
 
 $("bookBtn").onclick = async () => {
   const name = $("fName").value.trim(), phone = $("fPhone").value.trim(); let msg = "";
-  if (form.ppl > S.maxGroup) msg = `للمجموعات فوق ${AR(S.maxGroup)} تواصل مع الكوفي.`;
+  if (form.ppl > S.maxGroup) msg = `للمجموعات فوق ${AR(S.maxGroup)} تواصل مع المكان.`;
+  else if (S.policies.length && !$("fAgree").checked) msg = "اقرأ سياسات المكان ووافق عليها قبل الحجز.";
   else if (!form.time) msg = "اختر وقت من الخانات المتاحة.";
   else if (name.length < 2) msg = "اكتب اسمك عشان الموظف يعرفك.";
   $("bookErr").hidden = !msg; $("bookErr").textContent = msg; if (msg) return;
@@ -177,7 +182,7 @@ function renderOne() {
     if (now <= hold && b.dur > 0) head += `<p class="note">مدة الجلسة ${durTxt(b.dur)}، تنتهي ${clock(b.e)}.</p>`;
   } else if (b.status === "arrived") {
     const left = b.e - now;
-    if (b.dur <= 0 && !b.extra) head = `<div class="count">أهلاً فيك</div><p class="note">جلستك مفتوحة لين يقفل الكوفي.</p>`;
+    if (b.dur <= 0 && !b.extra) head = `<div class="count">أهلاً فيك</div><p class="note">جلستك مفتوحة لين يقفل المكان.</p>`;
     else if (left > 10 * 60000) head = `<div class="count">باقي من جلستك ${dur(left)}</div><p class="note">تنتهي ${clock(b.e)}. بنبهك قبلها بـ ١٠ دقائق.</p>`;
     else if (left > 0) head = `<div class="alarm">باقي ${dur(left)} على نهاية جلستك<b>جهّز نفسك للطلعة</b></div>`;
     else head = `<div class="alarm end">انتهى وقت جلستك<b>نشكرك على زيارتك، الطاولة عليها حجز بعدك</b></div>`;
@@ -341,6 +346,7 @@ $("mAdd").onclick = async () => {
 function fillSettings() {
   $("sName").value = S.name; $("sArea").value = S.area; $("sOpen").value = S.open; $("sClose").value = S.close;
   $("sGrace").value = S.grace; $("sMax").value = S.maxGroup; $("sMap").value = S.mapUrl;
+  $("sAbout").value = S.about; $("sPolicies").value = S.policies.join("\n");
   draftTypes = S.types.map(t => ({ ...t })); renderTypeSet();
 }
 function renderTypeSet() {
@@ -354,20 +360,43 @@ $("typeSet").onclick = e => { const c = e.target.closest("[data-dm]"); if (c) { 
 $("sSave").onclick = async () => {
   const num = (id, lo, hi) => Math.min(hi, Math.max(lo, parseInt($(id).value, 10) || lo)), err = $("sErr"); err.hidden = true;
   const patch = { name: $("sName").value.trim() || S.name, area: $("sArea").value.trim(), open_time: $("sOpen").value || S.open, close_time: $("sClose").value || S.close,
-    grace_minutes: num("sGrace", 5, 60), max_group: num("sMax", 1, 50), map_url: /^https:\/\//.test($("sMap").value.trim()) ? $("sMap").value.trim() : "", types: draftTypes };
+    grace_minutes: num("sGrace", 5, 60), max_group: num("sMax", 1, 50), map_url: /^https:\/\//.test($("sMap").value.trim()) ? $("sMap").value.trim() : "", types: draftTypes,
+    about: $("sAbout").value.trim().slice(0, 600), policies: $("sPolicies").value.trim().slice(0, 3000) };
   $("sSave").textContent = "جاري الحفظ…";
   const { error } = await sb.from("cafes").update(patch).eq("id", cafe.id);
   $("sSave").textContent = "احفظ الإعدادات";
-  if (error) { err.hidden = false; err.textContent = "ما انحفظت. تأكد إنك داخل بحساب صاحب الكوفي."; return; }
+  if (error) { err.hidden = false; err.textContent = "ما انحفظت. تأكد إنك داخل بحساب صاحب المكان."; return; }
   await reloadCafe(); $("sSave").textContent = "تم الحفظ"; setTimeout(() => $("sSave").textContent = "احفظ الإعدادات", 1500);
+};
+
+/* تغيير كلمة المرور لصاحب المكان */
+$("pwForm").onsubmit = async e => {
+  e.preventDefault(); const a = $("pw1").value, b = $("pw2").value, err = $("pwErr");
+  err.hidden = false; err.style.color = "";
+  if (a.length < 8 || !/[0-9]/.test(a) || !/[A-Za-z]/.test(a)) { err.textContent = "كلمة المرور لازم ٨ أحرف على الأقل، فيها حروف إنجليزية وأرقام."; return; }
+  if (a !== b) { err.textContent = "الكلمتين مو متطابقتين."; return; }
+  const { error } = await sb.auth.updateUser({ password: a });
+  if (error) { err.textContent = "ما تغيرت. سجّل خروج وادخل من جديد ثم جرّب."; return; }
+  $("pw1").value = ""; $("pw2").value = ""; err.style.color = "var(--accent)"; err.textContent = "تم تغيير كلمة المرور ✓ استخدمها في الدخول الجاي.";
 };
 
 /* ================= التنقل ================= */
 function copy(btn) { const t = btn.dataset.copy || $("shareLink").textContent; const o = btn.textContent;
   navigator.clipboard.writeText(t).then(() => { btn.textContent = "تم النسخ"; setTimeout(() => btn.textContent = o, 1500); }, () => {}); }
 $("copyShare").onclick = e => copy(e.currentTarget);
+/* عن المكان: النبذة والسياسات والخريطة */
+function renderAbout() {
+  $("aboutTab").hidden = !(S.about || S.policies.length || S.mapUrl);
+  $("aboutCard").hidden = !S.about; $("aboutText").textContent = S.about;
+  $("policyCard").hidden = !S.policies.length;
+  $("policyList").innerHTML = S.policies.map(p => `<li>${esc(p)}</li>`).join("");
+  $("mapRow").hidden = !S.mapUrl; if (S.mapUrl) $("mapRow").href = S.mapUrl; $("mapArea").textContent = S.area;
+}
+$("v-about").onclick = e => { const b = e.target.closest("[data-go]"); if (b) go(b.dataset.go); };
+$("agreeRow").onclick = e => { const b = e.target.closest("[data-go]"); if (b) go(b.dataset.go); };
+
 function show(v) {
-  view = v; for (const x of ["book", "mine", "booking", "login", "owner"]) $("v-" + x).hidden = x !== v;
+  view = v; for (const x of ["book", "mine", "booking", "login", "owner", "about"]) $("v-" + x).hidden = x !== v;
   $("tabs").hidden = v === "owner" || v === "login";
   document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-current", b.dataset.v === v || (v === "booking" && b.dataset.v === "mine")));
   renderUpcoming();
@@ -376,7 +405,7 @@ async function go(v) {
   if (v !== "booking") { clearInterval(pollOne); openToken = null; history.replaceState(null, "", "/" + SLUG + (v === "book" ? "" : "#" + v)); }
   if (v === "owner") {
     if (!session) return show("login");
-    if (cafe.owner_id !== session.user.id) { show("login"); const e = $("lErr"); e.hidden = false; e.textContent = "هذا الحساب مو صاحب هذا الكوفي."; return; }
+    if (cafe.owner_id !== session.user.id) { show("login"); const e = $("lErr"); e.hidden = false; e.textContent = "هذا الحساب مو صاحب هذا المكان."; return; }
     show("owner"); fillSettings(); renderOwner(); loadOwner(); startRealtime(); return;
   }
   show(v); if (v === "book") { renderBook(); loadBusy(); }
@@ -399,18 +428,19 @@ async function reloadCafe() {
   }
   sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
   try { await reloadCafe(); }
-  catch (_) { ban.hidden = false; ban.textContent = `ما لقينا كوفي باسم "${SLUG}". تأكد من الرابط أو من جدول cafes.`; $("bookBtn").disabled = true; return; }
+  catch (_) { ban.hidden = false; ban.textContent = `ما لقينا مكان باسم "${SLUG}". تأكد من الرابط أو من جدول cafes.`; $("bookBtn").disabled = true; return; }
   session = (await sb.auth.getSession()).data.session;
   sb.auth.onAuthStateChange((_e, s) => { session = s; if (view === "login" && s) go("owner"); });
   const h = location.hash.slice(1);
   if (h.startsWith("b-")) openBooking(h.slice(2));
   else if (h === "mine") go("mine");
+  else if (h === "about") go("about");
   else if (h === "owner") go("owner");
   else go("book");
   window.addEventListener("hashchange", () => {        // لو تغيّر الرابط بدون تحميل الصفحة
     const x = location.hash.slice(1);
     if (x.startsWith("b-")) { if (x.slice(2) !== openToken) openBooking(x.slice(2)); }
-    else if (x === "owner" || x === "mine") { if (view !== x && !(x === "owner" && view === "login")) go(x); }
+    else if (x === "owner" || x === "mine" || x === "about") { if (view !== x && !(x === "owner" && view === "login")) go(x); }
   });
   setInterval(() => {                                   // تحديث دوري: الخانات كل ٢٠ ثانية، والعدادات
     if (view === "book") loadBusy();
