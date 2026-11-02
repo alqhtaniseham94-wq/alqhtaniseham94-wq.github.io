@@ -312,9 +312,10 @@ function renderOwner() {
     const acts = b.status === "booked" ? `<button data-st="arrived" data-tok="${b.token}">وصل</button><button data-st="noshow" data-tok="${b.token}">ما حضر</button><button data-st="cancelled" data-tok="${b.token}">إلغاء</button>`
       : b.status === "arrived" ? `<button data-ext="15" data-tok="${b.token}">+١٥ دقيقة</button><button data-ext="30" data-tok="${b.token}">+٣٠ دقيقة</button><button data-st="done" data-tok="${b.token}">طلع</button>`
       : `<button data-st="booked" data-tok="${b.token}">رجّعه محجوز</button>`;
+    const tel = b.phone && /^05\d{8}$/.test(b.phone) ? `<a class="call" href="tel:+966${b.phone.slice(1)}">📞 اتصال</a>` : "";
     return `<div class="bk"><span class="t">${label12(b.time)}</span>
       <div class="who">${esc(b.name)} · ${AR(b.ppl)}<small>${timeLeft}${esc(typeOf(b.type).name)} · ${durTxt(b.dur)}${b.extra > 0 ? "+" + AR(b.extra) : ""} · ${esc(b.code)}${b.phone ? ` · <span class="ltr">${esc(b.phone)}</span>` : ""}${b.source === "manual" ? " · يدوي" : ""}</small></div>
-      <span class="pill ${c}">${l}</span><div class="acts">${acts}</div></div>`; }).join("")
+      <span class="pill ${c}">${l}</span><div class="acts">${tel}${acts}</div></div>`; }).join("")
     : `<p class="empty">ما فيه حجوزات في هذا اليوم. انسخ رابط الحجز من تحت وحطه في البايو.</p>`;
   const total = S.types.reduce((s, x) => s + x.cap, 0) || 1;
   const rows = slotList().map(tm => { const st = startMs(oDate, tm); return { tm, n: act.filter(b => b.s <= st && st < b.e).length }; }).filter(r => r.n > 0);   // كم طاولة مشغولة في كل وقت
