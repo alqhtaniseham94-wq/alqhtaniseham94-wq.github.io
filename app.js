@@ -281,7 +281,8 @@ $("upcoming").onclick = e => { const b = e.target.closest("[data-tok]"); if (b) 
 /* ================= صاحب الكوفي ================= */
 $("loginForm").onsubmit = async e => {
   e.preventDefault(); const err = $("lErr"); err.hidden = true;
-  const { error } = await sb.auth.signInWithPassword({ email: $("lEmail").value.trim(), password: $("lPass").value });
+  let u = $("lEmail").value.trim().toLowerCase(); if (!u.includes("@")) u += "@maqad.app";
+  const { error } = await sb.auth.signInWithPassword({ email: u, password: $("lPass").value });
   if (error) { err.hidden = false; err.textContent = "الإيميل أو كلمة المرور غلط."; return; }
 };
 $("logout").onclick = async () => { await sb.auth.signOut(); go("book"); };
