@@ -56,12 +56,22 @@ function toSettings(c) {
     grace: c.grace_minutes, maxGroup: c.max_group, mapUrl: c.map_url || "", closed: c.closed_dates || [],
     types: (c.types || []).map(t => ({ dur: 45, desc: "", ...t })),
     logo: c.logo_url || "", accent: c.accent_color || "", bg: c.bg_color || "",
+    closedHours: Array.isArray(c.closed_hours) ? c.closed_hours : [],
     about: c.about || "", policies: (c.policies || "").split("\n").map(x => x.trim()).filter(Boolean) };
 }
 function toBooking(r) {
   return { token: r.token, code: r.code, date: r.night, time: String(r.slot_time).slice(0, 5), type: r.type_id, ppl: r.people,
     name: r.name, phone: r.phone, status: r.status, s: Date.parse(r.start_at), e: r.end_at ? Date.parse(r.end_at) : null,
     dur: r.dur_minutes, extra: r.extra_minutes || 0, source: r.source };
+}
+// ساعات قفل أسبوعية (مثل: الجمعة ٥ص–١م) — التاريخ والوقت بتوقيت السعودية، dow: الأحد=0
+function inClosedHours(s, e) {
+  for (const r of S.closedHours || []) for (let k = addDays(keyFromMs(s), -1); k <= keyFromMs(e); k = addDays(k, 1)) {
+    if (dayIdx(k) !== Number(r.dow)) continue;
+    const ws = Date.parse(`${k}T${r.from}:00+03:00`); let we = Date.parse(`${k}T${r.to}:00+03:00`); if (we <= ws) we += 864e5;
+    if (s < we && ws < e) return true;
+  }
+  return false;
 }
 const isActive = b => b.status === "booked" || b.status === "arrived";
 function overlapCount(list, k, t, ty) {
@@ -79,6 +89,7 @@ function lifeOf(b) {
   return ["p-booked", "محجوز"];
 }
 const ERRORS = {
+  CLOSED_HOURS: "المكان مقفل في هذا الوقت. اختر وقت ثاني.",   // قبل CLOSED لأن اسمه يحتويه
   FULL: "امتلأ هذا الوقت قبل لحظات. اختر وقت ثاني.", CLOSED: "الحجز مقفل في هذا اليوم.", PAST: "هذا الوقت فات أو قريب جداً. اختر وقت بعده.",
   BAD_PHONE: "رقم الجوال لازم يبدأ بـ 05 ويكون ١٠ أرقام.", BAD_NAME: "اكتب اسمك (حرفين على الأقل).", BAD_PEOPLE: "عدد الأشخاص أكبر من المسموح. تواصل مع المكان.",
   BAD_TIME: "هذا الوقت مو من أوقات الحجز.", BAD_DATE: "الحجز متاح لسبعة أيام قدام فقط.", BAD_TYPE: "نوع الجلسة غير متاح.",
@@ -96,7 +107,8 @@ function remember(t) { try { const a = myTokens().filter(x => x !== t); a.unshif
 function renderHeader() {
   $("cafeName").textContent = S.name; $("cafeArea").textContent = S.area;
   $("logo").textContent = (S.name.replace(/^(كوفي|مقهى|مطعم)\s+/, "")[0] || "م");   // أول حرف من الاسم بدون "مطعم/كوفي"
-  $("cafeHours").textContent = `كل يوم ${label12(S.open)} – ${label12(S.close)}`;
+  const shut = (S.closedHours || []).map(r => `${DAYN[Number(r.dow)]} مقفل ${label12(r.from)} – ${label12(r.to)}`).join(" · ");
+  $("cafeHours").textContent = (spanMin() === 1440 ? "مفتوح ٢٤ ساعة" : `كل يوم ${label12(S.open)} – ${label12(S.close)}`) + (shut ? ` · ${shut}` : "");
   renderAbout();
   document.title = `${S.name} · احجز طاولتك`;
   // الهوية: شعار وألوان المكان لو محفوظة في قاعدة البيانات
@@ -123,9 +135,10 @@ function renderSlots() {
   const cap = typeOf(form.type).cap, now = Date.now();
   if (S.closed.includes(form.date)) { $("slots").innerHTML = `<p class="note" style="grid-column:1/-1">الحجز مقفل في هذا اليوم.</p>`; form.time = null; return; }
   $("slots").innerHTML = slotList().map(t => {
-    const left = cap - overlapCount(busy, form.date, t, form.type), past = startMs(form.date, t) < now + 10 * 60000;
-    const dis = left <= 0 || past; if (dis && form.time === t) form.time = null;
-    const note = past ? "انتهى" : left <= 0 ? "ممتلئ" : left <= 2 ? `باقي ${AR(left)}` : "متاح";
+    const left = cap - overlapCount(busy, form.date, t, form.type), st = startMs(form.date, t), past = st < now + 10 * 60000;
+    const d = typeOf(form.type).dur, shut = inClosedHours(st, d > 0 ? st + d * 60000 : closeAbs(form.date));
+    const dis = left <= 0 || past || shut; if (dis && form.time === t) form.time = null;
+    const note = past ? "انتهى" : shut ? "مقفل" : left <= 0 ? "ممتلئ" : left <= 2 ? `باقي ${AR(left)}` : "متاح";
     return `<button class="slot ${left <= 2 && !dis ? "few" : ""}" data-s="${t}" ${dis ? "disabled" : ""} aria-pressed="${form.time === t}">${label12(t).replace(/ [صم]$/, "")}<small>${note}</small></button>`;
   }).join("");
   $("groupNote").hidden = form.ppl <= S.maxGroup;
