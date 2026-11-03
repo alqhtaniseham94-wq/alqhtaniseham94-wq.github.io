@@ -430,7 +430,8 @@ $("ownerLink").onclick = e => { e.preventDefault(); go("owner"); };
 
 async function reloadCafe() {
   const { data, error } = await sb.from("cafes").select("*").eq("slug", SLUG).maybeSingle();
-  if (error || !data) throw new Error("NOT_FOUND");
+  if (error) throw new Error("NETWORK");
+  if (!data) throw new Error("NOT_FOUND");
   cafe = data; S = toSettings(data); renderHeader();
   if (view === "book") renderBook(); if (view === "owner") { renderOwner(); }
 }
@@ -442,8 +443,16 @@ async function reloadCafe() {
     ban.hidden = false; ban.textContent = "الموقع لسه ما انربط بقاعدة البيانات. عدّل ملف config.js (الخطوة ٣ في الدليل)."; $("bookBtn").disabled = true; return;
   }
   sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
-  try { await reloadCafe(); }
-  catch (_) { ban.hidden = false; ban.textContent = `ما لقينا مكان باسم "${SLUG}". تأكد من الرابط أو من جدول cafes.`; $("bookBtn").disabled = true; return; }
+  // أول تحميل: نبيّن إنه يحمّل، ولو النت ضعيف ما نعلق للأبد (مهلة ١٢ ثانية + زر إعادة المحاولة)
+  ban.hidden = false; ban.textContent = "جاري التحميل…"; $("bookBtn").disabled = true;
+  try { await Promise.race([reloadCafe(), new Promise((_, no) => setTimeout(() => no(new Error("NETWORK")), 12000))]); }
+  catch (e) {
+    ban.hidden = false;
+    if (e && e.message === "NOT_FOUND") ban.textContent = `ما لقينا مكان باسم "${SLUG}". تأكد من الرابط.`;
+    else { ban.innerHTML = `الاتصال ضعيف وما قدرنا نحمّل الصفحة. <button type="button" id="retry">أعد المحاولة</button>`; $("retry").onclick = () => location.reload(); }
+    return;
+  }
+  ban.hidden = true; $("bookBtn").disabled = false;
   session = (await sb.auth.getSession()).data.session;
   sb.auth.onAuthStateChange((_e, s) => { session = s; if (view === "login" && s) go("owner"); });
   const h = location.hash.slice(1);
