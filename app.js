@@ -439,20 +439,24 @@ async function reloadCafe() {
 /* ================= التشغيل ================= */
 (async () => {
   const ban = $("banner");
-  if (!window.supabase || !CFG.SUPABASE_URL || CFG.SUPABASE_URL.includes("xxxx")) {
-    ban.hidden = false; ban.textContent = "الموقع لسه ما انربط بقاعدة البيانات. عدّل ملف config.js (الخطوة ٣ في الدليل)."; $("bookBtn").disabled = true; return;
+  if (!window.supabase) {   // مكتبة الاتصال ما نزلت (نت ضعيف)
+    document.body.classList.remove("loading"); ban.hidden = false; $("bookBtn").disabled = true;
+    ban.innerHTML = `الاتصال ضعيف وما قدرنا نحمّل الصفحة. <button type="button" id="retry">أعد المحاولة</button>`; $("retry").onclick = () => location.reload(); return;
+  }
+  if (!CFG.SUPABASE_URL || CFG.SUPABASE_URL.includes("xxxx")) {
+    document.body.classList.remove("loading"); ban.hidden = false; ban.textContent = "الموقع لسه ما انربط بقاعدة البيانات. عدّل ملف config.js (الخطوة ٣ في الدليل)."; $("bookBtn").disabled = true; return;
   }
   sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
   // أول تحميل: نبيّن إنه يحمّل، ولو النت ضعيف ما نعلق للأبد (مهلة ١٢ ثانية + زر إعادة المحاولة)
-  ban.hidden = false; ban.textContent = "جاري التحميل…"; $("bookBtn").disabled = true;
+  $("bookBtn").disabled = true;
   try { await Promise.race([reloadCafe(), new Promise((_, no) => setTimeout(() => no(new Error("NETWORK")), 12000))]); }
   catch (e) {
-    ban.hidden = false;
+    document.body.classList.remove("loading"); ban.hidden = false;
     if (e && e.message === "NOT_FOUND") ban.textContent = `ما لقينا مكان باسم "${SLUG}". تأكد من الرابط.`;
     else { ban.innerHTML = `الاتصال ضعيف وما قدرنا نحمّل الصفحة. <button type="button" id="retry">أعد المحاولة</button>`; $("retry").onclick = () => location.reload(); }
     return;
   }
-  ban.hidden = true; $("bookBtn").disabled = false;
+  document.body.classList.remove("loading"); $("bookBtn").disabled = false;
   session = (await sb.auth.getSession()).data.session;
   sb.auth.onAuthStateChange((_e, s) => { session = s; if (view === "login" && s) go("owner"); });
   const h = location.hash.slice(1);
